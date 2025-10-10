@@ -141,7 +141,7 @@
     <item>
      <widget class="QGroupBox" name="groupBox_3">
       <property name="title">
-       <string>Журнал операций</string>
+       <string>Отладочная информация</string>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
@@ -150,7 +150,7 @@
           <bool>true</bool>
          </property>
          <property name="placeholderText">
-          <string>Здесь будет журнал всех операций...</string>
+          <string>Здесь будет отображаться отладочная информация...</string>
          </property>
         </widget>
        </item>
@@ -159,7 +159,7 @@
          <item>
           <widget class="QPushButton" name="clearButton">
            <property name="text">
-            <string>Очистить журнал</string>
+            <string>Очистить поле вывода</string>
            </property>
           </widget>
          </item>

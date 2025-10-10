@@ -10,11 +10,11 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    QVector<int> standardBaudRates = {50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200};
+    QVector<int> standardBaudRates = {50, 75, 110, 134, 150, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200};
     for (int rate : standardBaudRates) {
         ui->baudRateComboBox->addItem(QString::number(rate), rate);
     }
-    ui->baudRateComboBox->setCurrentIndex(12);
+    ui->baudRateComboBox->setCurrentIndex(11);
 
     onRefreshPorts();
 

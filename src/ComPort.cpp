@@ -137,7 +137,6 @@ void ComPort::readingThreadFunc() {
                 if (!utf8Data.empty() && m_dataCallback) {
                     m_dataCallback(utf8Data);
                 } else if (m_dataCallback) {
-                    // Если конвертация не удалась, отправляем исходные данные
                     m_dataCallback(receivedData);
                 }
             }
@@ -149,9 +148,6 @@ void ComPort::readingThreadFunc() {
                 break;
             }
         }
-
-        // Небольшая пауза чтобы не грузить процессор
-        Sleep(10);
     }
 }
 
