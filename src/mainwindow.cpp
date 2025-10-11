@@ -121,7 +121,9 @@ void MainWindow::onDataReceived(const std::string& data)
 
         displayReceivedData(received);
 
-        logMessage("Получено: " + received, true);
+        if(received != "\n") {
+            logMessage("Получено: " + received, true);
+        }
     }
 }
 
