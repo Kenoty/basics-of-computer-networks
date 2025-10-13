@@ -21,6 +21,8 @@ set(PROJECT_SOURCES
         ComPort.h
         EncodingConverter.h
         EncodingConverter.cpp
+        Frame.h
+        Frame.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
