@@ -23,6 +23,8 @@ set(PROJECT_SOURCES
         EncodingConverter.cpp
         Frame.h
         Frame.cpp
+        FrameManager.h
+        FrameManager.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
