@@ -1,5 +1,4 @@
 #include "ComPort.h"
-#include "EncodingConverter.h"
 #include <iostream>
 
 ComPort::ComPort() {};
@@ -84,13 +83,7 @@ bool ComPort::configurePort() {
 bool ComPort::writeData(const std::string& data) {
     if (!isOpen()) return false;
 
-    std::string encodedData = EncodingConverter::utf8ToWindows1251(data);
-    if (encodedData.empty() && !data.empty()) {
-        std::cerr << "Ошибка кодировки при конвертации в Windows-1251" << std::endl;
-        return false;
-    }
-
-    return writeData(encodedData.c_str(), encodedData.length());
+    return writeData(data.c_str(), data.length());
 }
 
 bool ComPort::writeData(const char* data, size_t length) {
@@ -129,14 +122,10 @@ void ComPort::readingThreadFunc() {
     while (m_keepReading) {
         if (ReadFile(m_hPort, buffer, sizeof(buffer) - 1, &bytesRead, NULL)) {
             if (bytesRead > 0) {
-                buffer[bytesRead] = '\0'; //последнее что добавил, но не собрал
+                buffer[bytesRead] = '\0';
                 std::string receivedData(buffer, bytesRead);
 
-                std::string utf8Data = EncodingConverter::windows1251ToUtf8(receivedData);
-
-                if (!utf8Data.empty() && m_dataCallback) {
-                    m_dataCallback(utf8Data);
-                } else if (m_dataCallback) {
+                if (m_dataCallback) {
                     m_dataCallback(receivedData);
                 }
             }
