@@ -106,23 +106,43 @@ void MainWindow::onSendData()
         message += "\n";
     }
 
-    if (m_comPort.writeData(message.toStdString())) {
-        logMessage("Отправлено: " + message, false);
-        ui->sendLineEdit->clear();
-    } else {
-        logMessage("Ошибка отправки", false);
+    std::vector<Frame> frames = m_frameManager.packMessage(message.toStdString());
+    logMessage("Сообщение: " + message.mid(0, message.length() - 1) + " было фрагментировано", false);
+
+    std::vector<std::string> stuffedFrames = m_frameManager.byteStuff(frames);
+
+    for(int i = 0; i < stuffedFrames.size(); i++) {
+        if (m_comPort.writeData(stuffedFrames[i])) {
+            logMessage("Отправлен кадр " + QString::number(i + 1) +
+                            " из " + QString::number(frames[i].getTotal()), false);
+            ui->sendLineEdit->clear();
+        } else {
+            logMessage("Ошибка отправки кадра", false);
+        }
     }
 }
 
 void MainWindow::onDataReceived(const std::string& data)
 {
     if (!data.empty()) {
-        QString received = QString::fromStdString(data);
 
-        displayReceivedData(received);
+        m_receivedBytes.append(data);
 
-        if(received != "\n") {
-            logMessage("Получено: " + received, true);
+        if(FrameManager::isValidFrame(m_receivedBytes)) {
+            Frame receivedFrame = m_frameManager.byteUnstuff(m_receivedBytes);
+
+            std::string receivedMessage = m_frameManager.unpackMessage(receivedFrame);
+
+            QString received = QString::fromStdString(receivedMessage);
+            displayReceivedData(received);
+
+            if(received != "\n") {
+                logMessage("Получен кадр " + QString::number(receivedFrame.getSequence()) +
+                               " из " + QString::number(receivedFrame.getTotal()) +
+                               " с сообщением: " + received, true);
+            }
+
+            m_receivedBytes.clear();
         }
     }
 }

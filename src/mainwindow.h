@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include "ComPort.h"
+#include "FrameManager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -34,5 +35,7 @@ private:
 
     Ui::MainWindow *ui;
     ComPort m_comPort;
+    FrameManager m_frameManager;
+    std::string m_receivedBytes;
     bool m_portOpened = false;
 };
