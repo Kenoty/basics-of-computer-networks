@@ -25,6 +25,8 @@ set(PROJECT_SOURCES
         Frame.cpp
         FrameManager.h
         FrameManager.cpp
+        FrameInfo.h
+        FrameInfo.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

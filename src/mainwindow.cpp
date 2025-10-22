@@ -3,10 +3,12 @@
 #include <QMessageBox>
 #include <QScrollBar>
 #include <QDateTime>
+#include <QThread>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , m_frameInfoDialog(new FrameInfoDialog(this))
 {
     ui->setupUi(this);
 
@@ -29,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onBaudRateChanged);
 
     connect(ui->sendLineEdit, &QLineEdit::returnPressed, this, &MainWindow::onSendData);
+    connect(ui->frameInfoButton, &QPushButton::clicked, this, &MainWindow::onShowFrameInfo);
 
     int clearButtonWidth = 140;
     ui->clearButton->setFixedWidth(clearButtonWidth);
@@ -67,7 +70,7 @@ void MainWindow::onOpenClose()
     if (m_portOpened) {
         m_comPort.close();
         m_portOpened = false;
-        logMessage("Порт закрыт");
+        logMessage("Порт закрыт", false);
     } else {
         QString portName = ui->portComboBox->currentText();
         int baudRate = ui->baudRateComboBox->currentData().toInt();
@@ -79,7 +82,7 @@ void MainWindow::onOpenClose()
             });
 
             m_portOpened = true;
-            logMessage("Порт " + portName + " открыт, скорость: " + QString::number(baudRate));
+            logMessage("Порт " + portName + " открыт, скорость: " + QString::number(baudRate),false);
         } else {
             QMessageBox::warning(this, "Ошибка",
                                  "Не удалось открыть порт " + portName);
@@ -102,24 +105,77 @@ void MainWindow::onSendData()
         return;
     }
 
-    if (!message.endsWith("\n")) {
-        message += "\n";
+    ui->sendButton->setEnabled(false);
+    ui->sendLineEdit->setEnabled(false);
+
+    sendMessageInBackground(message);
+}
+
+void MainWindow::sendMessageInBackground(const QString& message)
+{
+    m_sendThread = QThread::create([this, message]() {
+        std::vector<Frame> frames = m_frameManager.packMessage(message.toStdString());
+
+        QMetaObject::invokeMethod(this, "logMessage",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(const QString&, "Сообщение:\n" + message + "\nбыло сегментировано на кадры"),
+                                  Q_ARG(bool, false));
+
+        std::vector<std::string> stuffedFrames = m_frameManager.byteStuff(frames);
+
+        for(int i = 0; i < stuffedFrames.size(); i++) {
+            if (m_comPort.writeData(stuffedFrames[i])) {
+                QMetaObject::invokeMethod(this, "onFrameSent",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(int, i + 1),
+                                          Q_ARG(int, frames[i].getTotal()),
+                                          Q_ARG(std::string, stuffedFrames[i]));
+
+                QThread::msleep(10);
+            } else {
+                QMetaObject::invokeMethod(this, "logMessage",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(const QString&, "Ошибка отправки кадра " + QString::number(i + 1)),
+                                          Q_ARG(bool, false));
+            }
+        }
+
+        QMetaObject::invokeMethod(this, "onSendCompleted",
+                                  Qt::QueuedConnection);
+    });
+
+    connect(m_sendThread, &QThread::finished, m_sendThread, &QObject::deleteLater);
+    m_sendThread->start();
+}
+
+size_t MainWindow::findCompleteFrame(const std::string& data)
+{
+    if (data.length() < HEADER_SIZE + 2) {
+        return 0;
     }
 
-    std::vector<Frame> frames = m_frameManager.packMessage(message.toStdString());
-    logMessage("Сообщение: " + message.mid(0, message.length() - 1) + " было фрагментировано", false);
+    size_t startPos = data.find(static_cast<char>(START_FLAG_BYTE));
+    if (startPos == std::string::npos) {
+        return 0;
+    }
 
-    std::vector<std::string> stuffedFrames = m_frameManager.byteStuff(frames);
+    while (startPos < data.length() && data[startPos] == static_cast<char>(START_FLAG_BYTE)) {
+        startPos++;
+    }
+    if (startPos > 0) startPos--;
 
-    for(int i = 0; i < stuffedFrames.size(); i++) {
-        if (m_comPort.writeData(stuffedFrames[i])) {
-            logMessage("Отправлен кадр " + QString::number(i + 1) +
-                            " из " + QString::number(frames[i].getTotal()), false);
-            ui->sendLineEdit->clear();
-        } else {
-            logMessage("Ошибка отправки кадра", false);
+    for (size_t i = startPos + 1; i < data.length(); i++) {
+        if (static_cast<uint8_t>(data[i]) == END_FLAG_BYTE) {
+            size_t frameLength = i - startPos + 1;
+
+            std::string potentialFrame = data.substr(startPos, frameLength);
+            if (FrameManager::isValidFrame(potentialFrame)) {
+                return startPos + frameLength;
+            }
         }
     }
+
+    return 0;
 }
 
 void MainWindow::onDataReceived(const std::string& data)
@@ -128,21 +184,31 @@ void MainWindow::onDataReceived(const std::string& data)
 
         m_receivedBytes.append(data);
 
-        if(FrameManager::isValidFrame(m_receivedBytes)) {
-            Frame receivedFrame = m_frameManager.byteUnstuff(m_receivedBytes);
+        while (true) {
+            size_t frameLength = findCompleteFrame(m_receivedBytes);
+            if (frameLength == 0) {
+                break;
+            }
 
-            std::string receivedMessage = m_frameManager.unpackMessage(receivedFrame);
+            std::string receivedFrame = m_receivedBytes.substr(0, frameLength);
+            m_receivedBytes = m_receivedBytes.substr(frameLength);
+
+            Frame unstaffedFrame = m_frameManager.byteUnstuff(receivedFrame);
+
+            std::string receivedMessage = m_frameManager.unpackMessage(unstaffedFrame);
 
             QString received = QString::fromStdString(receivedMessage);
             displayReceivedData(received);
 
             if(received != "\n") {
-                logMessage("Получен кадр " + QString::number(receivedFrame.getSequence()) +
-                               " из " + QString::number(receivedFrame.getTotal()) +
+                logMessage("Получен кадр " + QString::number(unstaffedFrame.getSequence()) +
+                               " из " + QString::number(unstaffedFrame.getTotal()) +
                                " с сообщением: " + received, true);
             }
 
-            m_receivedBytes.clear();
+            if(unstaffedFrame.getSequence() == unstaffedFrame.getTotal()) {
+                displayReceivedData("\n");
+            }
         }
     }
 }
@@ -180,7 +246,7 @@ void MainWindow::onBaudRateChanged(int index)
     if (m_portOpened && index >= 0) {
         int newBaudRate = ui->baudRateComboBox->currentData().toInt();
         if (m_comPort.setBaudRate(newBaudRate)) {
-            logMessage("Скорость изменена на: " + QString::number(newBaudRate));
+            logMessage("Скорость изменена на: " + QString::number(newBaudRate), false);
         }
     }
 }
@@ -230,5 +296,31 @@ void MainWindow::logMessage(const QString &message, bool isIncoming)
 
     if (atBottom) {
         scrollBar->setValue(scrollBar->maximum());
+    }
+}
+
+void MainWindow::onShowFrameInfo()
+{
+    m_frameInfoDialog->show();
+    m_frameInfoDialog->raise();
+    m_frameInfoDialog->activateWindow();
+}
+
+void MainWindow::onFrameSent(int current, int total, const std::string& stuffedFrame)
+{
+    logMessage("Отправлен кадр " + QString::number(current) + " из " + QString::number(total), false);
+    m_frameInfoDialog->addTransmittedFrame(current, total, stuffedFrame);
+}
+
+void MainWindow::onSendCompleted()
+{
+    ui->sendLineEdit->clear();
+    ui->sendButton->setEnabled(true);
+    ui->sendLineEdit->setEnabled(true);
+
+    if (m_sendThread) {
+        m_sendThread->quit();
+        m_sendThread->wait();
+        m_sendThread = nullptr;
     }
 }

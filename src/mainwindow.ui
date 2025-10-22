@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>700</width>
+    <width>783</width>
     <height>700</height>
    </rect>
   </property>
@@ -175,6 +175,13 @@
             </size>
            </property>
           </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="frameInfoButton">
+           <property name="text">
+            <string>Структура кадров</string>
+           </property>
+          </widget>
          </item>
         </layout>
        </item>
