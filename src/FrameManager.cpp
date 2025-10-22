@@ -49,9 +49,9 @@ std::vector<std::string> FrameManager::byteStuff(const std::vector<Frame>& frame
 
         stuffedFrame.push_back(frameInBytes.front());
         for(int j = 1; j < frameInBytes.size() - 1; j++) {
-            if(frameInBytes[j] == FLAG_BYTE) {
+            if(frameInBytes[j] == START_FLAG_BYTE) {
                 stuffedFrame.push_back(ESCAPE_BYTE);
-                stuffedFrame.push_back(FLAG_BYTE ^ XOR_MASK);
+                stuffedFrame.push_back(START_FLAG_BYTE ^ XOR_MASK);
             }
             else if (frameInBytes[j] == ESCAPE_BYTE) {
                 stuffedFrame.push_back(ESCAPE_BYTE);
@@ -97,7 +97,7 @@ bool FrameManager::isValidFrame(const std::vector<uint8_t>& data) {
         return false;
     }
 
-    if (data.front() != FLAG_BYTE || data.back() != FLAG_BYTE) {
+    if (data.front() != START_FLAG_BYTE || data.back() != END_FLAG_BYTE) {
         return false;
     }
 

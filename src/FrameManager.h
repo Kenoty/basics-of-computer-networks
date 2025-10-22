@@ -3,9 +3,6 @@
 #include "Frame.h"
 #include <vector>
 
-#define ESCAPE_BYTE 0x7D
-#define XOR_MASK 0x20
-
 class FrameManager {
 public:
     FrameManager() {};

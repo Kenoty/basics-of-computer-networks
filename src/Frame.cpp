@@ -32,7 +32,7 @@ bool Frame::deserialize(const std::vector<uint8_t>& data) {
         return false;
     }
 
-    if(data[0] != FLAG_BYTE || data[data.size() - 1] != FLAG_BYTE) {
+    if(data[0] != START_FLAG_BYTE || data[data.size() - 1] != END_FLAG_BYTE) {
         return false;
     }
 
