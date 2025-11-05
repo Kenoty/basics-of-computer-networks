@@ -8,7 +8,7 @@ FrameInfoDialog::FrameInfoDialog(QWidget *parent)
 {
     setupUI();
     setWindowTitle("Структура переданных кадров");
-    setFixedSize(720, 400);
+    setFixedSize(740, 400);
 
     setModal(false);
 }
@@ -52,34 +52,34 @@ void FrameInfoDialog::addTransmittedFrame(int current, int total, const std::str
 
     size_t counter = 0;
 
-    frameStructure += QString("  Флаг начала: 0x%1\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
+    frameStructure += QString("  Флаг начала:   0x%1\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
     if (stuffedBytes[counter] != ESCAPE_BYTE) {
-        frameStructure += QString("  Всего:       0x%1\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
+        frameStructure += QString("  Всего кадров:  0x%1\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
     }
     else {
-        frameStructure += QString("  Всего:       0x%1 0x%2\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'))
+        frameStructure += QString("  Всего кадров:  0x%1 0x%2\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'))
                                                               .arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
     }
     if(stuffedBytes[counter] != ESCAPE_BYTE) {
-        frameStructure += QString("  Номер:       0x%1\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
+        frameStructure += QString("  Номер кадра:   0x%1\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
     }
     else {
-        frameStructure += QString("  Номер:       0x%1 0x%2\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'))
+        frameStructure += QString("  Номер кадра:   0x%1 0x%2\n").arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'))
                                                               .arg(static_cast<uint8_t>(stuffedBytes[counter++]), 2, 16, QLatin1Char('0'));
     }
 
-    frameStructure += "  Данные:      ";
+    frameStructure += "  Данные:        ";
     for (size_t i = 0; i + counter < stuffedFrame.size() - 1; i++) {
         frameStructure += QString("0x%1 ").arg(static_cast<uint8_t>(stuffedFrame[i + counter]), 2, 16, QLatin1Char('0'));
         if ((i + 1) % 16 == 0 && i + 1 + counter < stuffedFrame.size() - 1) {
-            frameStructure += "\n               ";
+            frameStructure += "\n                 ";
         }
     }
     frameStructure += "\n";
 
-    frameStructure += QString("  Флаг конца:  0x%1\n").arg(static_cast<uint8_t>(stuffedFrame.back()), 2, 16, QLatin1Char('0'));
+    frameStructure += QString("  Флаг конца:    0x%1\n").arg(static_cast<uint8_t>(stuffedFrame.back()), 2, 16, QLatin1Char('0'));
 
-    frameStructure += "──────────────────────────────────────────────────────────────────────────────────────────────\n";
+    frameStructure += "────────────────────────────────────────────────────────────────────────────────────────────────\n";
 
     QScrollBar *scrollBar = m_textEdit->verticalScrollBar();
     bool atBottom = scrollBar->value() == scrollBar->maximum();

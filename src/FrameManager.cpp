@@ -76,12 +76,12 @@ Frame FrameManager::byteUnstuff(const std::string& bytes) {
 
     unstuffedBytes.push_back(stuffedBytes.front());
 
-    for(int j = 1; j < stuffedBytes.size() - 1; j++){
-        if(stuffedBytes[j] == ESCAPE_BYTE) {
-            unstuffedBytes.push_back(stuffedBytes[++j] ^ XOR_MASK);
+    for(int i = 1; i < stuffedBytes.size() - 1; i++) {
+        if(stuffedBytes[i] == ESCAPE_BYTE) {
+            unstuffedBytes.push_back(stuffedBytes[++i] ^ XOR_MASK);
         }
         else {
-            unstuffedBytes.push_back(stuffedBytes[j]);
+            unstuffedBytes.push_back(stuffedBytes[i]);
         }
     }
     unstuffedBytes.push_back(stuffedBytes.back());
