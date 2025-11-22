@@ -12,6 +12,8 @@ public:
     std::vector<std::string> byteStuff(const std::vector<Frame>& frames);
     Frame byteUnstuff(const std::string& bytes);
 
+    size_t getStuffedFcsSize(const std::vector<uint8_t>& fcs);
+
     static bool isValidFrame(const std::vector<uint8_t>& data);
     static bool isValidFrame(const std::string& data);
 };

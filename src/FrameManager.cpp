@@ -92,8 +92,26 @@ Frame FrameManager::byteUnstuff(const std::string& bytes) {
     return result;
 }
 
+size_t FrameManager::getStuffedFcsSize(const std::vector<uint8_t>& fcs) {
+    std::vector<uint8_t> stuffedFcs;
+
+    for (uint8_t byte : fcs) {
+        if (byte == START_FLAG_BYTE) {
+            stuffedFcs.push_back(ESCAPE_BYTE);
+            stuffedFcs.push_back(START_FLAG_BYTE ^ XOR_MASK);
+        } else if (byte == ESCAPE_BYTE) {
+            stuffedFcs.push_back(ESCAPE_BYTE);
+            stuffedFcs.push_back(ESCAPE_BYTE ^ XOR_MASK);
+        } else {
+            stuffedFcs.push_back(byte);
+        }
+    }
+
+    return stuffedFcs.size();
+}
+
 bool FrameManager::isValidFrame(const std::vector<uint8_t>& data) {
-    if (data.size() < HEADER_SIZE + 2) {
+    if (data.size() < HEADER_SIZE + 1 + 1 + TRAILER_SIZE) {
         return false;
     }
 

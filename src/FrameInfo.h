@@ -16,7 +16,7 @@ public:
     explicit FrameInfoDialog(QWidget *parent = nullptr);
     ~FrameInfoDialog();
 
-    void addTransmittedFrame(int current, int total, const std::string& stuffedFrame);
+    void addTransmittedFrame(int current, int total, size_t stuffedFcsSize, const std::string& stuffedFrame);
 
 private slots:
     void onClearText();
