@@ -30,7 +30,7 @@ private slots:
 
     void onDataReceived(const std::string& data);
 
-    void onFrameSent(int current, int total, const std::string& stuffedFrame);
+    void onFrameSent(int current, int total, size_t stuffedFcsSize, const std::string& stuffedFrame);
     void onSendCompleted();
 
     void logMessage(const QString &message, bool isIncoming);

@@ -27,6 +27,10 @@ set(PROJECT_SOURCES
         FrameManager.cpp
         FrameInfo.h
         FrameInfo.cpp
+        HammingEncoder.h
+        HammingEncoder.cpp
+        ErrorSimulator.h
+        ErrorSimulator.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

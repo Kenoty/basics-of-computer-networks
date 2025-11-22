@@ -129,6 +129,7 @@ void MainWindow::sendMessageInBackground(const QString& message)
                                           Qt::QueuedConnection,
                                           Q_ARG(int, i + 1),
                                           Q_ARG(int, frames[i].getTotal()),
+                                          Q_ARG(size_t, m_frameManager.getStuffedFcsSize(frames[i].getFcs())),
                                           Q_ARG(std::string, stuffedFrames[i]));
 
                 QThread::msleep(10);
@@ -150,7 +151,7 @@ void MainWindow::sendMessageInBackground(const QString& message)
 
 size_t MainWindow::findCompleteFrame(const std::string& data)
 {
-    if (data.length() < HEADER_SIZE + 2) {
+    if (data.length() < HEADER_SIZE + 1 + 1 + TRAILER_SIZE) {
         return 0;
     }
 
@@ -195,16 +196,34 @@ void MainWindow::onDataReceived(const std::string& data)
 
             Frame unstaffedFrame = m_frameManager.byteUnstuff(receivedFrame);
 
-            std::string receivedMessage = m_frameManager.unpackMessage(unstaffedFrame);
+            unstaffedFrame.simulateErrors();
 
-            QString received = QString::fromStdString(receivedMessage);
-            displayReceivedData(received);
+            QString corruptedReceivedMessage = QString::fromStdString(m_frameManager.unpackMessage(unstaffedFrame));
 
-            if(received != "\n") {
+            if(corruptedReceivedMessage != "\n") {
                 logMessage("Получен кадр " + QString::number(unstaffedFrame.getSequence()) +
                                " из " + QString::number(unstaffedFrame.getTotal()) +
-                               " с сообщением: " + received, true);
+                               " с сообщением: " + corruptedReceivedMessage, true);
             }
+
+            //logMessage("Сгенерировано ошибок в " + QString::number(unstaffedFrame.simulateErrors()) + " битах", true);
+
+            switch(unstaffedFrame.correctErrors()) {
+            case 0:
+                logMessage("Ошибок обнаружено не было", true);
+                break;
+            case 1:
+                logMessage("Исправлена одиночная ошибка", true);
+                break;
+            case 2:
+                logMessage("Обнаружена двойная ошибка", true);
+                break;
+            default:
+                logMessage("Были переданы пустые данные", true);
+            }
+
+            QString receivedMessage = QString::fromStdString(m_frameManager.unpackMessage(unstaffedFrame));
+            displayReceivedData(receivedMessage);
 
             if(unstaffedFrame.getSequence() == unstaffedFrame.getTotal()) {
                 displayReceivedData("\n");
@@ -306,10 +325,10 @@ void MainWindow::onShowFrameInfo()
     m_frameInfoDialog->activateWindow();
 }
 
-void MainWindow::onFrameSent(int current, int total, const std::string& stuffedFrame)
+void MainWindow::onFrameSent(int current, int total, size_t stuffedFcsSize, const std::string& stuffedFrame)
 {
     logMessage("Отправлен кадр " + QString::number(current) + " из " + QString::number(total), false);
-    m_frameInfoDialog->addTransmittedFrame(current, total, stuffedFrame);
+    m_frameInfoDialog->addTransmittedFrame(current, total, stuffedFcsSize, stuffedFrame);
 }
 
 void MainWindow::onSendCompleted()
