@@ -203,7 +203,7 @@ void MainWindow::onDataReceived(const std::string& data)
             if(corruptedReceivedMessage != "\n") {
                 logMessage("Получен кадр " + QString::number(unstaffedFrame.getSequence()) +
                                " из " + QString::number(unstaffedFrame.getTotal()) +
-                               " с сообщением: " + corruptedReceivedMessage, true);
+                               " с данными: " + corruptedReceivedMessage, true);
             }
 
             //logMessage("Сгенерировано ошибок в " + QString::number(unstaffedFrame.simulateErrors()) + " битах", true);
