@@ -121,7 +121,7 @@ void MainWindow::sendMessageInBackground(const QString& message) {
 
         QMetaObject::invokeMethod(this, "logMessage",
                                   Qt::QueuedConnection,
-                                  Q_ARG(const QString&, "Сообщение сегментировано на " + QString::number(frames.size()) + " кадров"),
+                                  Q_ARG(const QString&, "Сообщение:\n" + message + "\nбыло сегментировано на кадры"),
                                   Q_ARG(bool, false));
 
         std::vector<std::string> stuffedFrames = m_frameManager.byteStuff(frames);
@@ -392,6 +392,8 @@ bool MainWindow::transmitWithCSMACD(const std::string& frameData, int frameNumbe
     const int maxAttempts = channel.getMaxAttempts();
     const double slotTime = channel.getSlotTime();
 
+    size_t bytesSent = 0;
+
     while (attempt < maxAttempts) {
         if (channel.isChannelBusy()) {
             int backoffSlots = channel.calculateBackoffDelay(attempt);
@@ -400,7 +402,7 @@ bool MainWindow::transmitWithCSMACD(const std::string& frameData, int frameNumbe
             QMetaObject::invokeMethod(this, "logMessage",
                                       Qt::QueuedConnection,
                                       Q_ARG(const QString&,
-                                            QString("Канал занят, попытка %1, Задержка: %2 слотов (%3 мс)")
+                                            QString("Канал занят, попытка %1. Задержка: %2 слотов (%3 мс)")
                                                 .arg(attempt + 1).arg(backoffSlots).arg(backoffMs)),
                                       Q_ARG(bool, false));
 
@@ -411,7 +413,7 @@ bool MainWindow::transmitWithCSMACD(const std::string& frameData, int frameNumbe
 
         bool collisionDetected = false;
 
-        for (size_t i = 0; i < frameData.length(); i++) {
+        for (size_t i = bytesSent; i < frameData.length(); i++) {
             if (channel.isCollisionOccurred()) {
                 collisionDetected = true;
                 break;

@@ -4,7 +4,7 @@
 #include <chrono>
 
 // CSMA/CD константы
-#define SLOT_TIME_MS 1  // 512 бит при 10 Мбит/с = 51.2 мс
+#define SLOT_TIME_MS 10  // 512 бит при 10 Мбит/с = 51.2 мс
 #define MAX_ATTEMPTS 16    // Максимальное число попыток
 #define JAM_SIGNAL_SIZE 32 // 32 бита jam-сигнала
 
