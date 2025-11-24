@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "ChannelManager.h"
 #include "ui_mainwindow.h"
 #include <QMessageBox>
 #include <QScrollBar>
@@ -32,6 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->sendLineEdit, &QLineEdit::returnPressed, this, &MainWindow::onSendData);
     connect(ui->frameInfoButton, &QPushButton::clicked, this, &MainWindow::onShowFrameInfo);
+    connect(ui->enableEmulationCheckBox, &QCheckBox::toggled, this, &MainWindow::onEmulationToggled);
 
     int clearButtonWidth = 140;
     ui->clearButton->setFixedWidth(clearButtonWidth);
@@ -111,20 +113,29 @@ void MainWindow::onSendData()
     sendMessageInBackground(message);
 }
 
-void MainWindow::sendMessageInBackground(const QString& message)
-{
-    m_sendThread = QThread::create([this, message]() {
+void MainWindow::sendMessageInBackground(const QString& message) {
+    bool emulationEnabled = m_emulationEnabled;
+
+    m_sendThread = QThread::create([this, message, emulationEnabled]() {
         std::vector<Frame> frames = m_frameManager.packMessage(message.toStdString());
 
         QMetaObject::invokeMethod(this, "logMessage",
                                   Qt::QueuedConnection,
-                                  Q_ARG(const QString&, "Сообщение:\n" + message + "\nбыло сегментировано на кадры"),
+                                  Q_ARG(const QString&, "Сообщение сегментировано на " + QString::number(frames.size()) + " кадров"),
                                   Q_ARG(bool, false));
 
         std::vector<std::string> stuffedFrames = m_frameManager.byteStuff(frames);
 
         for(int i = 0; i < stuffedFrames.size(); i++) {
-            if (m_comPort.writeData(stuffedFrames[i])) {
+            bool success;
+
+            if (emulationEnabled) {
+                success = transmitWithCSMACD(stuffedFrames[i], i + 1);
+            } else {
+                success = m_comPort.writeData(stuffedFrames[i]);
+            }
+
+            if (success) {
                 QMetaObject::invokeMethod(this, "onFrameSent",
                                           Qt::QueuedConnection,
                                           Q_ARG(int, i + 1),
@@ -132,17 +143,25 @@ void MainWindow::sendMessageInBackground(const QString& message)
                                           Q_ARG(size_t, m_frameManager.getStuffedFcsSize(frames[i].getFcs())),
                                           Q_ARG(std::string, stuffedFrames[i]));
 
-                QThread::msleep(10);
-            } else {
                 QMetaObject::invokeMethod(this, "logMessage",
                                           Qt::QueuedConnection,
-                                          Q_ARG(const QString&, "Ошибка отправки кадра " + QString::number(i + 1)),
+                                          Q_ARG(const QString&, "Кадр " + QString::number(i + 1) + " успешно передан"),
+                                          Q_ARG(bool, false));
+            } else {
+                QString errorMsg = emulationEnabled ?
+                                       "Ошибка: не удалось передать кадр " + QString::number(i + 1) + " после всех попыток" :
+                                       "Ошибка передачи кадра " + QString::number(i + 1);
+
+                QMetaObject::invokeMethod(this, "logMessage",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(const QString&, errorMsg),
                                           Q_ARG(bool, false));
             }
+
+            QThread::msleep(10);
         }
 
-        QMetaObject::invokeMethod(this, "onSendCompleted",
-                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, "onSendCompleted", Qt::QueuedConnection);
     });
 
     connect(m_sendThread, &QThread::finished, m_sendThread, &QObject::deleteLater);
@@ -182,8 +201,30 @@ size_t MainWindow::findCompleteFrame(const std::string& data)
 void MainWindow::onDataReceived(const std::string& data)
 {
     if (!data.empty()) {
+        if (static_cast<uint8_t>(data[0]) == START_FLAG_BYTE && !m_receivedBytes.empty()) {
+            m_receivedBytes.clear();
+        }
 
-        m_receivedBytes.append(data);
+        std::string jamPattern(4, '\xFF');
+        size_t jamPos = data.find(jamPattern);
+
+        if (jamPos != std::string::npos) {
+            logMessage("Обнаружен JAM-сигнал", true);
+
+            if (jamPos > 0) {
+                std::string beforeJam = data.substr(0, jamPos);
+                m_receivedBytes.append(beforeJam);
+            }
+
+            size_t afterJamPos = jamPos + jamPattern.length();
+            if (afterJamPos < data.length()) {
+                std::string afterJam = data.substr(afterJamPos);
+                m_receivedBytes.append(afterJam);
+            }
+
+        } else {
+            m_receivedBytes.append(data);
+        }
 
         while (true) {
             size_t frameLength = findCompleteFrame(m_receivedBytes);
@@ -341,5 +382,95 @@ void MainWindow::onSendCompleted()
         m_sendThread->quit();
         m_sendThread->wait();
         m_sendThread = nullptr;
+    }
+}
+
+// Основной метод передачи с CSMA/CD
+bool MainWindow::transmitWithCSMACD(const std::string& frameData, int frameNumber) {
+    ChannelManager& channel = ChannelManager::getInstance();
+    int attempt = 0;
+    const int maxAttempts = channel.getMaxAttempts();
+    const double slotTime = channel.getSlotTime();
+
+    while (attempt < maxAttempts) {
+        if (channel.isChannelBusy()) {
+            int backoffSlots = channel.calculateBackoffDelay(attempt);
+            int backoffMs = static_cast<int>(backoffSlots * slotTime);
+
+            QMetaObject::invokeMethod(this, "logMessage",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(const QString&,
+                                            QString("Канал занят, попытка %1, Задержка: %2 слотов (%3 мс)")
+                                                .arg(attempt + 1).arg(backoffSlots).arg(backoffMs)),
+                                      Q_ARG(bool, false));
+
+            QThread::msleep(backoffMs);
+            attempt++;
+            continue;
+        }
+
+        bool collisionDetected = false;
+
+        for (size_t i = 0; i < frameData.length(); i++) {
+            if (channel.isCollisionOccurred()) {
+                collisionDetected = true;
+                break;
+            }
+
+            std::string byteData(1, frameData[i]);
+            if (!m_comPort.writeData(byteData)) {
+                collisionDetected = true;
+                break;
+            }
+
+            QThread::msleep(static_cast<int>(slotTime / frameData.length()));
+        }
+
+        if (collisionDetected) {
+            // Коллизия обнаружена на одном из байтов - отправляем jam-сигнал
+            sendJamSignal();
+
+            int backoffSlots = channel.calculateBackoffDelay(attempt);
+            int backoffMs = static_cast<int>(backoffSlots * slotTime);
+
+            QMetaObject::invokeMethod(this, "logMessage",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(const QString&,
+                                            QString("Коллизия на байте! Задержка: %1 слотов (%2 мс)")
+                                                .arg(backoffSlots).arg(backoffMs)),
+                                      Q_ARG(bool, false));
+
+            QThread::msleep(backoffMs);
+            attempt++;
+        } else {
+            // Успешная передача всего кадра без коллизий
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void MainWindow::sendJamSignal() {
+    // 32 бита jam-сигнала (4 байта)
+    std::vector<uint8_t> jamSignal(JAM_SIGNAL_SIZE / 8, 0xFF);
+    std::string jamStr(jamSignal.begin(), jamSignal.end());
+
+    m_comPort.writeData(jamStr);
+
+    QMetaObject::invokeMethod(this, "logMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(const QString&, "Отправлен JAM-сигнал"),
+                              Q_ARG(bool, false));
+}
+
+void MainWindow::onEmulationToggled(bool checked) {
+    m_emulationEnabled = checked;
+    ChannelManager::getInstance().setEmulationEnabled(checked);
+
+    if (checked) {
+        logMessage("Эмуляция CSMA/CD включена", false);
+    } else {
+        logMessage("Эмуляция CSMA/CD выключена", false);
     }
 }

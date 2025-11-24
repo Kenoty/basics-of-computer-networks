@@ -31,6 +31,8 @@ set(PROJECT_SOURCES
         HammingEncoder.cpp
         ErrorSimulator.h
         ErrorSimulator.cpp
+        ChannelManager.h
+        ChannelManager.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
